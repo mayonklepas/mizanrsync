@@ -17,6 +17,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
+import java.text.ParseException;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
@@ -29,7 +30,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
 
 /**
  *
@@ -42,9 +42,15 @@ public class Main {
      */
     public static void main(String[] args) {
 
+        String os = System.getProperty("os.name");
+
         Properties prop = new Properties();
         try {
-            prop.load(new FileReader("config.properties"));
+            if (os.toLowerCase().contains("windows")) {
+                prop.load(new FileReader("config.properties"));
+            } else {
+                prop.load(new FileReader("/home/mizanbackup/config.properties"));
+            }
         } catch (FileNotFoundException ex) {
             Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
         } catch (IOException ex) {
@@ -58,10 +64,8 @@ public class Main {
         String serverPath = prop.getProperty("rsync.serverpath");
         String localPath = prop.getProperty("rsync.localpath");
         String intervalString = prop.getProperty("rsync.interval");
-        int interval = Integer.parseInt(intervalString);
+        int interval = 1000 * Integer.parseInt(intervalString);
         String preCommand = prop.getProperty("rsync.preCommand");
-
-        String os = System.getProperty("os.name");
 
         ExecutorService serv = Executors.newSingleThreadExecutor();
         serv.execute(() -> {
@@ -89,7 +93,8 @@ public class Main {
 
                         Logger.getLogger(Main.class.getName()).info("Ready to sync");
 
-                        String command = "sshpass -p '{{password}}' rsync -avzP {{localPath}} {{username}}@{{host}}:{{serverPath}}";
+                        //String command = "sshpass -p'{{password}}' rsync -avzP {{localPath}} {{username}}@{{host}}:{{serverPath}}";
+                        String command = "/home/mizanbackup/exec";
 
                         if (os.toLowerCase().contains("windows")) {
                             command = "cmd.exe /c wsl sshpass -p '{{password}}' rsync -avzP {{localPath}} {{username}}@{{host}}:{{serverPath}}";
@@ -124,7 +129,7 @@ public class Main {
                         Logger.getLogger(Main.class.getName()).info("Sync Not Active");
                     }
 
-                } catch (IOException ex) {
+                } catch (IOException | org.json.simple.parser.ParseException ex) {
                     Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
                 }
 
@@ -137,10 +142,9 @@ public class Main {
 
         });
         serv.shutdown();
-
     }
 
-    public boolean getIsActiveSync(String port, String companyCode) {
+    public boolean getIsActiveSync(String port, String companyCode) throws org.json.simple.parser.ParseException {
         try {
             URL url = new URL("http://mizancloud.com:" + port + "/biling/user-layanan/check-active-backup-service?companyCode=" + companyCode);
             Logger.getLogger(Main.class.getName()).info(url.toString());
@@ -160,7 +164,7 @@ public class Main {
             return false;
         } catch (MalformedURLException ex) {
             Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (IOException | ParseException ex) {
+        } catch (IOException ex) {
             Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
         }
         return false;
