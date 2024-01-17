@@ -1,3 +1,4 @@
+
 /*
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
  * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Main.java to edit this template
@@ -5,6 +6,7 @@
 package MizanRsync;
 
 import java.io.BufferedReader;
+import java.io.File;
 
 import java.io.FileNotFoundException;
 import java.io.FileReader;
@@ -17,7 +19,9 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
+import java.sql.SQLOutput;
 import java.text.ParseException;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
@@ -28,6 +32,7 @@ import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 
@@ -71,6 +76,10 @@ public class Main {
         serv.execute(() -> {
             while (true) {
                 try {
+                    boolean isBackupSuccess = false;
+                    
+                    File flog = new File("backup.log");
+                    flog.delete();
 
                     if (!preCommand.equals("none")) {
                         Runtime rt = Runtime.getRuntime();
@@ -78,7 +87,19 @@ public class Main {
 
                         try ( BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
                             String result = br.lines().collect(Collectors.joining(System.lineSeparator()));
-                            System.out.println(result);
+
+                            if (flog.exists()) {
+                                BufferedReader brlog = new BufferedReader(new FileReader(flog));
+                                String log;
+                                while ((log = brlog.readLine()) != null) {
+                                    if (log.contains("gbak:closing file, committing, and finishing")) {
+                                        isBackupSuccess = true;
+                                    } else {
+                                        isBackupSuccess = false;
+                                    }
+                                }
+                                brlog.close();
+                            }
                         }
 
                         try ( BufferedReader brError = new BufferedReader(new InputStreamReader(p.getErrorStream()))) {
@@ -87,46 +108,52 @@ public class Main {
                         }
                     }
 
-                    boolean isReadySync = new Main().getIsActiveSync(apiPort, apiCompanyCode);
+                    if (isBackupSuccess) {
+                        boolean isReadySync = new Main().getIsActiveSync(apiPort, apiCompanyCode);
+                        if (isReadySync) {
 
-                    if (isReadySync) {
+                            Logger.getLogger(Main.class.getName()).info("Ready to sync");
 
-                        Logger.getLogger(Main.class.getName()).info("Ready to sync");
+                            //String command = "sshpass -p'{{password}}' rsync -avzP {{localPath}} {{username}}@{{host}}:{{serverPath}}";
+                            String command = "/home/mizanbackup/exec";
 
-                        //String command = "sshpass -p'{{password}}' rsync -avzP {{localPath}} {{username}}@{{host}}:{{serverPath}}";
-                        String command = "/home/mizanbackup/exec";
+                            if (os.toLowerCase().contains("windows")) {
+                                command = "cmd.exe /c wsl sshpass -p '{{password}}' rsync -avzP {{localPath}} {{username}}@{{host}}:{{serverPath}}";
+                            }
 
-                        if (os.toLowerCase().contains("windows")) {
-                            command = "cmd.exe /c wsl sshpass -p '{{password}}' rsync -avzP {{localPath}} {{username}}@{{host}}:{{serverPath}}";
+                            command = command.replace("{{password}}", password)
+                                    .replace("{{localPath}}", localPath)
+                                    .replace("{{username}}", username)
+                                    .replace("{{host}}", host)
+                                    .replace("{{serverPath}}", serverPath);
+
+                            String strip = Stream.iterate(0, x -> x + 1).limit(command.length()).map(d -> "-").collect(Collectors.joining());
+
+                            System.out.println("\n");
+                            System.out.println(strip);
+                            System.out.println(command);
+                            System.out.println(strip);
+
+                            Runtime rt = Runtime.getRuntime();
+                            Process p = rt.exec(command);
+
+                            try ( BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+                                String result = br.lines().collect(Collectors.joining(System.lineSeparator()));
+                                System.out.println(result);
+                            }
+
+                            try ( BufferedReader brError = new BufferedReader(new InputStreamReader(p.getErrorStream()))) {
+                                String resultError = brError.lines().collect(Collectors.joining(System.lineSeparator()));
+                                System.out.println(resultError);
+                            }
+                        } else {
+                            Logger.getLogger(Main.class.getName()).info("Sync Not Active");
                         }
-
-                        command = command.replace("{{password}}", password)
-                                .replace("{{localPath}}", localPath)
-                                .replace("{{username}}", username)
-                                .replace("{{host}}", host)
-                                .replace("{{serverPath}}", serverPath);
-
-                        String strip = Stream.iterate(0, x -> x + 1).limit(command.length()).map(d -> "-").collect(Collectors.joining());
-
-                        System.out.println("\n");
-                        System.out.println(strip);
-                        System.out.println(command);
-                        System.out.println(strip);
-
-                        Runtime rt = Runtime.getRuntime();
-                        Process p = rt.exec(command);
-
-                        try ( BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
-                            String result = br.lines().collect(Collectors.joining(System.lineSeparator()));
-                            System.out.println(result);
-                        }
-
-                        try ( BufferedReader brError = new BufferedReader(new InputStreamReader(p.getErrorStream()))) {
-                            String resultError = brError.lines().collect(Collectors.joining(System.lineSeparator()));
-                            System.out.println(resultError);
-                        }
-                    } else {
-                        Logger.getLogger(Main.class.getName()).info("Sync Not Active");
+                    }
+                    else
+                    {
+                        //execute procedure exception blok transaksi genjur;
+                        System.out.println("backup gagal.");
                     }
 
                 } catch (IOException | org.json.simple.parser.ParseException ex) {
