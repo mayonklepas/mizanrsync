@@ -19,7 +19,12 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
 import java.sql.SQLOutput;
+import java.sql.Statement;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Map;
@@ -54,7 +59,7 @@ public class Main {
             if (os.toLowerCase().contains("windows")) {
                 prop.load(new FileReader("config.properties"));
             } else {
-                prop.load(new FileReader("/home/mizanbackup/config.properties"));
+                prop.load(new FileReader("config.properties"));
             }
         } catch (FileNotFoundException ex) {
             Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
@@ -71,13 +76,14 @@ public class Main {
         String intervalString = prop.getProperty("rsync.interval");
         int interval = 1000 * Integer.parseInt(intervalString);
         String preCommand = prop.getProperty("rsync.preCommand");
+        String databaseConnection = prop.getProperty("rsync.databaseConnection");
 
         ExecutorService serv = Executors.newSingleThreadExecutor();
         serv.execute(() -> {
             while (true) {
                 try {
                     boolean isBackupSuccess = false;
-                    
+
                     File flog = new File("backup.log");
                     flog.delete();
 
@@ -149,22 +155,17 @@ public class Main {
                         } else {
                             Logger.getLogger(Main.class.getName()).info("Sync Not Active");
                         }
-                    }
-                    else
-                    {
-                        /*
-                        CREATE EXCEPTION GAGAL_BACKUP_DATABASE 'Gagal Backup Database. Silahkan Buka Data Backup Atau Repair Database Anda.';
+                    } else {
 
-                        CREATE trigger genjur_gagal_backup for genjur
-                        active before insert position 0
-                        AS
-                        begin
-                        exception gagal_backup_database;
-                        end;
-                        
-                        */
-                        //execute procedure exception blok transaksi genjur;
-                        System.out.println("backup gagal.");
+                        try ( Connection connection = DriverManager.getConnection(databaseConnection, "SYSDBA", "masterkey");  Statement st = connection.createStatement()) {
+                            st.addBatch("CREATE EXCEPTION GAGAL_BACKUP_DATABASE 'Gagal Backup Database. Silahkan Buka Data Backup Atau Repair Database Anda.'");
+                            st.addBatch("CREATE trigger genjur_gagal_backup for genjur active before insert position 0 AS begin exception gagal_backup_database;end;");
+                            st.executeBatch();
+                            System.out.println("Database gagal di backup dan proses transaksi akan diblok");
+                        } catch (SQLException ex) {
+                            Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
+                        } 
+
                     }
 
                 } catch (IOException | org.json.simple.parser.ParseException ex) {
