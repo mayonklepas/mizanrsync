@@ -162,6 +162,8 @@ public class Main {
                             st.addBatch("CREATE trigger genjur_gagal_backup for genjur active before insert position 0 AS begin exception gagal_backup_database;end;");
                             st.executeBatch();
                             System.out.println("Database gagal di backup dan proses transaksi akan diblok");
+                            st.close();
+                            connection.close();
                         } catch (SQLException ex) {
                             Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
                         } 
