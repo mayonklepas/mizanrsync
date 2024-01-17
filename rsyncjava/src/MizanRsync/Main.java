@@ -152,6 +152,17 @@ public class Main {
                     }
                     else
                     {
+                        /*
+                        CREATE EXCEPTION GAGAL_BACKUP_DATABASE 'Gagal Backup Database. Silahkan Buka Data Backup Atau Repair Database Anda.';
+
+                        CREATE trigger genjur_gagal_backup for genjur
+                        active before insert position 0
+                        AS
+                        begin
+                        exception gagal_backup_database;
+                        end;
+                        
+                        */
                         //execute procedure exception blok transaksi genjur;
                         System.out.println("backup gagal.");
                     }
